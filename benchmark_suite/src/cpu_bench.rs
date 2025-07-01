@@ -3,7 +3,7 @@
 // Includes tests like Fibonacci sequence calculation and prime number counting.
 // Uses Criterion for benchmarking and provides functions to summarize results from JSON output.
 
-use criterion::{black_box, Criterion, criterion_group, criterion_main};
+use criterion::{black_box, Criterion};
 
 // A simple Fibonacci function to benchmark
 fn fibonacci(n: u64) -> u64 {
@@ -93,7 +93,7 @@ fn parse_criterion_json(json_path: PathBuf) -> Result<String, String> {
 
 
 // Function to run benchmarks and capture a summary by parsing Criterion JSON.
-pub fn run_cpu_benchmarks_and_summarize(config: Option<String>) -> Result<String, String> {
+pub fn run_cpu_benchmarks_and_summarize(_config: Option<String>) -> Result<String, String> {
     let mut summary = String::from("CPU Benchmark Summary (from Criterion JSON):\n");
 
     // Create a temporary directory for Criterion's output
@@ -107,7 +107,7 @@ pub fn run_cpu_benchmarks_and_summarize(config: Option<String>) -> Result<String
 
     // --- Fibonacci Benchmarks ---
     let mut crit_fib = Criterion::default()
-        .output_directory(output_dir.clone())
+        .output_directory(&output_dir)
         .with_plots() // Keep plots for CLI if desired, but we mainly need JSON
         .sample_size(10); // Small sample size for faster UI feedback
 
@@ -128,7 +128,7 @@ pub fn run_cpu_benchmarks_and_summarize(config: Option<String>) -> Result<String
 
     // --- Primes Benchmarks ---
     let mut crit_primes = Criterion::default()
-        .output_directory(output_dir.clone())
+        .output_directory(&output_dir)
         .with_plots()
         .sample_size(10);
 

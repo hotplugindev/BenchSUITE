@@ -1,9 +1,9 @@
 // src/net_bench.rs
 // Contains benchmarks for testing network performance.
 // Currently implements TCP connection time and echo throughput against a public server.
-// Uses Tokio for async operations and Criterion for benchmarking, summarizing from JSON.
+// Uses Tokio async runtime and Criterion for benchmarking.
 
-use criterion::{black_box, Criterion, BenchmarkId, Throughput, criterion_group};
+use criterion::{black_box, Criterion, BenchmarkId, Throughput};
 use tokio::net::TcpStream;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use std::time::Duration;
@@ -107,7 +107,7 @@ fn bench_tcp_echo_throughput(c: &mut Criterion) {
                 })
             },
             // Routine: Perform the echo test
-            |mut stream_option| async {
+            |stream_option| async {
                 if let Some(mut stream) = stream_option {
                     if let Err(e) = perform_echo_test(&mut stream, black_box(&payload)).await {
                         eprintln!("Echo test failed: {}", e);
@@ -173,17 +173,14 @@ pub fn run_network_benchmarks_and_summarize(config: Option<String>) -> Result<St
         let err_msg = format!("Cannot connect to {}. Network benchmarks skipped.", ECHO_SERVER_ADDRESS);
         eprintln!("{}", err_msg);
         return Ok(format!("{}\n{}", summary, err_msg));
-    }
-    drop(runtime_check);
-
-
-    let mut crit_config = Criterion::default()
-        .output_directory(output_dir.clone())
-        .measurement_time(Duration::from_secs(15)) // Network ops can be slow
-        .sample_size(10); // Fewer samples for network tests
+    }    drop(runtime_check);
 
     // --- TCP Connection Time ---
-    bench_tcp_connection_time(&mut crit_config.clone());
+    let mut crit_conn_time = Criterion::default()
+        .output_directory(&output_dir)
+        .measurement_time(Duration::from_secs(15))
+        .sample_size(10);
+    bench_tcp_connection_time(&mut crit_conn_time);
     // BenchmarkId was from_parameter(ECHO_SERVER_ADDRESS)
     let conn_time_json_path = output_dir.join("Net_TCP_ConnectionTime")
                                        .join(ECHO_SERVER_ADDRESS.replace(":", "_")) // Sanitize filename from address
@@ -194,7 +191,11 @@ pub fn run_network_benchmarks_and_summarize(config: Option<String>) -> Result<St
     }
 
     // --- TCP Echo Throughput ---
-    bench_tcp_echo_throughput(&mut crit_config.clone());
+    let mut crit_echo_tp = Criterion::default()
+        .output_directory(&output_dir)
+        .measurement_time(Duration::from_secs(15))
+        .sample_size(10);
+    bench_tcp_echo_throughput(&mut crit_echo_tp);
     // BenchmarkId was from_parameter(DATA_PAYLOAD_SIZE_BYTES)
     let echo_tp_json_path = output_dir.join("Net_TCP_EchoThroughput")
                                      .join(&format!("{}", DATA_PAYLOAD_SIZE_BYTES))
@@ -227,13 +228,17 @@ pub fn run_network_benchmarks_cli(config: Option<String>) {
     }
 
     println!("\nDetailed Criterion output for Network (CLI):");
-    let mut c_detailed = Criterion::default()
+    let mut c_conn_detailed = Criterion::default()
         .with_plots()
         .measurement_time(Duration::from_secs(15))
         .sample_size(10);
-
-    bench_tcp_connection_time(&mut c_detailed.clone());
-    bench_tcp_echo_throughput(&mut c_detailed);
+    bench_tcp_connection_time(&mut c_conn_detailed);
+    
+    let mut c_echo_detailed = Criterion::default()
+        .with_plots()
+        .measurement_time(Duration::from_secs(15))
+        .sample_size(10);
+    bench_tcp_echo_throughput(&mut c_echo_detailed);
 
     println!("Network benchmarks finished for CLI.");
 }

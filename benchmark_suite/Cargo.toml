@@ -6,11 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-iced = { version = "0.12", features = ["tokio", "glow"] }
+iced = { version = "0.12", features = ["tokio"] }
 clap = { version = "4.4", features = ["derive"] }
 criterion = { version = "0.5", features = ["async_tokio"] }
 wgpu = "0.19"
-tch = "0.14" # For PyTorch bindings, consider CPU-only feature if GPU support is complex initially
+# Removed tch dependency for PyTorch bindings
 # For dfdx, if preferred over tch-rs:
 # dfdx = "0.12"
 # cudarc = { version = "0.9", optional = true } # If using dfdx with CUDA

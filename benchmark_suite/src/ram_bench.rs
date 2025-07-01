@@ -3,7 +3,7 @@
 // Focuses on sequential and random read/write speeds.
 // Uses Criterion for benchmarking and summarizes results from JSON output.
 
-use criterion::{black_box, Criterion, BenchmarkId, Throughput, criterion_group};
+use criterion::{black_box, Criterion, BenchmarkId, Throughput};
 use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
 
@@ -121,18 +121,21 @@ fn parse_criterion_json_ram(json_path: PathBuf, id: &str, throughput_bytes: Opti
 }
 
 
-pub fn run_ram_benchmarks_and_summarize(config: Option<String>) -> Result<String, String> {
+pub fn run_ram_benchmarks_and_summarize(_config: Option<String>) -> Result<String, String> {
     let mut summary = String::from("RAM Benchmark Summary (from Criterion JSON):\n");
     let temp_dir = tempdir().map_err(|e| format!("Failed to create temp dir for RAM bench: {}", e))?;
     let output_dir = temp_dir.path().to_path_buf();
 
-    let mut crit_config = Criterion::default()
-        .output_directory(output_dir.clone())
+    let _crit_config = Criterion::default()
+        .output_directory(&output_dir)
         .sample_size(10); // Keep sample size small for UI responsiveness
 
     // --- Sequential Write ---
     // The benchmark function itself defines the group "RAM_SequentialWrite" and bench name from BenchmarkId
-    bench_sequential_write(&mut crit_config.clone());
+    let mut crit_seq_write = Criterion::default()
+        .output_directory(&output_dir)
+        .sample_size(10);
+    bench_sequential_write(&mut crit_seq_write);
     let seq_write_json_path = output_dir.join("RAM_SequentialWrite")
                                        .join(&format!("{}", BUFFER_SIZE_BYTES)) // BenchmarkId was from_parameter(BUFFER_SIZE_BYTES)
                                        .join("estimates.json");
@@ -142,7 +145,10 @@ pub fn run_ram_benchmarks_and_summarize(config: Option<String>) -> Result<String
     }
 
     // --- Sequential Read ---
-    bench_sequential_read(&mut crit_config.clone());
+    let mut crit_seq_read = Criterion::default()
+        .output_directory(&output_dir)
+        .sample_size(10);
+    bench_sequential_read(&mut crit_seq_read);
     let seq_read_json_path = output_dir.join("RAM_SequentialRead")
                                       .join(&format!("{}", BUFFER_SIZE_BYTES))
                                       .join("estimates.json");
@@ -152,7 +158,10 @@ pub fn run_ram_benchmarks_and_summarize(config: Option<String>) -> Result<String
     }
 
     // --- Random Read ---
-    bench_random_read(&mut crit_config.clone());
+    let mut crit_rand_read = Criterion::default()
+        .output_directory(&output_dir)
+        .sample_size(10);
+    bench_random_read(&mut crit_rand_read);
     let rand_read_json_path = output_dir.join("RAM_RandomRead")
                                        .join(&format!("{}", ITERATIONS_SMALL)) // BenchmarkId was from_parameter(ITERATIONS_SMALL)
                                        .join("estimates.json");
@@ -176,10 +185,12 @@ pub fn run_ram_benchmarks_cli(config: Option<String>) {
     }
 
     println!("\nDetailed Criterion output for RAM (CLI):");
-    let mut c_detailed = Criterion::default().with_plots();
-    bench_sequential_write(&mut c_detailed.clone());
-    bench_sequential_read(&mut c_detailed.clone());
-    bench_random_read(&mut c_detailed);
+    let mut c_seq_write_detailed = Criterion::default().with_plots();
+    bench_sequential_write(&mut c_seq_write_detailed);
+    let mut c_seq_read_detailed = Criterion::default().with_plots();
+    bench_sequential_read(&mut c_seq_read_detailed);
+    let mut c_rand_read_detailed = Criterion::default().with_plots();
+    bench_random_read(&mut c_rand_read_detailed);
     println!("RAM benchmarks finished for CLI.");
 }
 

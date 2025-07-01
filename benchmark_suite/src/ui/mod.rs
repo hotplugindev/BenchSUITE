@@ -3,11 +3,12 @@
 // Defines the application state, messages, update logic, and view rendering.
 
 use iced::{Application, Command, Element, Settings, Theme, executor};
-use iced::widget::{button, column, container, text, scrollable, Column, Row, Space, checkbox}; // Added checkbox
+use iced::widget::{button, column, container, text, scrollable, Column, Row, Space};
 use iced::Length;
+use iced::Size;
 
 // --- Application State ---
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct BenchmarkApp {
     // UI state
     current_page: Page,
@@ -17,7 +18,6 @@ pub struct BenchmarkApp {
     run_ram_bench: bool,
     run_disk_bench: bool,
     run_net_bench: bool,
-    run_nn_bench: bool, // Separate toggle for NN benchmarks
 
     // Benchmark results
     cpu_results: Option<Result<String, String>>, // Store Result directly
@@ -25,7 +25,6 @@ pub struct BenchmarkApp {
     ram_results: Option<Result<String, String>>,
     disk_results: Option<Result<String, String>>,
     net_results: Option<Result<String, String>>,
-    nn_results: Option<Result<String, String>>,  // For NN part
 
     is_benchmarking: bool,
     active_benchmarks: usize, // Counter for active benchmarks
@@ -42,13 +41,11 @@ impl Default for BenchmarkApp {
             run_ram_bench: true,
             run_disk_bench: true,
             run_net_bench: true,
-            run_nn_bench: true,
             cpu_results: None,
             gpu_results: None,
             ram_results: None,
             disk_results: None,
             net_results: None,
-            nn_results: None,
             is_benchmarking: false,
             active_benchmarks: 0,
             current_benchmark_status: "Select benchmarks and click 'Run'.".to_string(),
@@ -70,7 +67,6 @@ pub enum Message {
     ToggleRamBench(bool),
     ToggleDiskBench(bool),
     ToggleNetBench(bool),
-    ToggleNnBench(bool),
 
     // Actions
     RunSelectedBenchmarks,
@@ -102,7 +98,6 @@ pub enum BenchmarkType {
     Ram,
     Disk,
     Network,
-    NeuralNetwork,
 }
 
 
@@ -132,7 +127,6 @@ impl Application for BenchmarkApp {
             Message::ToggleRamBench(val) => { self.run_ram_bench = val; Command::none() }
             Message::ToggleDiskBench(val) => { self.run_disk_bench = val; Command::none() }
             Message::ToggleNetBench(val) => { self.run_net_bench = val; Command::none() }
-            Message::ToggleNnBench(val) => { self.run_nn_bench = val; Command::none() }
 
             Message::RunSelectedBenchmarks => {
                 if self.is_benchmarking {
@@ -148,7 +142,6 @@ impl Application for BenchmarkApp {
                 self.ram_results = None;
                 self.disk_results = None;
                 self.net_results = None;
-                self.nn_results = None;
 
                 let mut commands = Vec::new();
 
@@ -168,8 +161,8 @@ impl Application for BenchmarkApp {
                     self.active_benchmarks += 1;
                     commands.push(Command::perform(perform_net_benchmarks_async(None), |res| Message::BenchmarkStepComplete(BenchmarkType::Network, res)));
                 }
-                if self.run_gpu_bench || self.run_nn_bench {
-                    self.active_benchmarks += 1; // This one command accounts for both GPU and NN if selected
+                if self.run_gpu_bench {
+                    self.active_benchmarks += 1;
                     commands.push(Command::perform(perform_gpu_benchmarks_async(None), |res| Message::BenchmarkStepComplete(BenchmarkType::Gpu, res)));
                 }
 
@@ -188,41 +181,10 @@ impl Application for BenchmarkApp {
             Message::BenchmarkStepComplete(bench_type, result) => {
                 match bench_type {
                     BenchmarkType::Cpu => self.cpu_results = Some(result),
-                    BenchmarkType::Gpu => { // This handles combined GPU and NN results
-                        let result_clone = result.clone(); // Clone for separate error storing if needed
-                        if self.run_gpu_bench || self.run_nn_bench { // Only process if one was intended
-                            if let Ok(ref result_string) = result {
-                                let nn_marker = "Neural Network (tch-rs) Benchmark Summary:";
-                                if let Some(nn_start_index) = result_string.find(nn_marker) {
-                                    if self.run_gpu_bench {
-                                        self.gpu_results = Some(Ok(result_string[..nn_start_index].trim_end().to_string()));
-                                    }
-                                    if self.run_nn_bench {
-                                        self.nn_results = Some(Ok(result_string[nn_start_index..].to_string()));
-                                    }
-                                } else { // No NN marker
-                                    if self.run_gpu_bench {
-                                        self.gpu_results = Some(result); // Assign full result to GPU
-                                    }
-                                    if self.run_nn_bench { // If NN was selected but no marker
-                                        self.nn_results = Some(Err("NN benchmark data not found in GPU results.".to_string()));
-                                    }
-                                }
-                            } else { // Original result was an Err
-                                if self.run_gpu_bench { self.gpu_results = Some(result_clone.clone()); }
-                                if self.run_nn_bench { self.nn_results = Some(result_clone); }
-                            }
-                        }
-                    }
+                    BenchmarkType::Gpu => self.gpu_results = Some(result),
                     BenchmarkType::Ram => self.ram_results = Some(result),
                     BenchmarkType::Disk => self.disk_results = Some(result),
                     BenchmarkType::Network => self.net_results = Some(result),
-                    BenchmarkType::NeuralNetwork => {
-                        // This case should ideally not be hit if Gpu type triggers combined summary and is parsed.
-                        // If it is, it means perform_gpu_benchmarks_async was called with is_nn_only=true,
-                        // which is not the current logic. For safety, handle it.
-                        if self.run_nn_bench { self.nn_results = Some(result); }
-                    }
                 }
 
                 if self.active_benchmarks > 0 {
@@ -290,8 +252,7 @@ impl BenchmarkApp {
             .push(iced::widget::checkbox("RAM Benchmarks", self.run_ram_bench).on_toggle(Message::ToggleRamBench))
             .push(iced::widget::checkbox("Disk Benchmarks", self.run_disk_bench).on_toggle(Message::ToggleDiskBench))
             .push(iced::widget::checkbox("Network Benchmarks", self.run_net_bench).on_toggle(Message::ToggleNetBench))
-            .push(iced::widget::checkbox("GPU (General) Benchmarks", self.run_gpu_bench).on_toggle(Message::ToggleGpuBench))
-            .push(iced::widget::checkbox("GPU (Neural Network) Benchmarks", self.run_nn_bench).on_toggle(Message::ToggleNnBench));
+            .push(iced::widget::checkbox("GPU Benchmarks", self.run_gpu_bench).on_toggle(Message::ToggleGpuBench));
 
         let run_button_widget = if self.is_benchmarking {
             button(text(&self.run_button_text).horizontal_alignment(iced::alignment::Horizontal::Center)).padding(10)
@@ -333,8 +294,7 @@ impl BenchmarkApp {
             result_entry("RAM:", &self.ram_results, self.run_ram_bench),
             result_entry("Disk:", &self.disk_results, self.run_disk_bench),
             result_entry("Network:", &self.net_results, self.run_net_bench),
-            result_entry("GPU (General):", &self.gpu_results, self.run_gpu_bench),
-            result_entry("GPU (Neural Network):", &self.nn_results, self.run_nn_bench),
+            result_entry("GPU:", &self.gpu_results, self.run_gpu_bench),
         ]
         .spacing(15) // Increased spacing a bit
         .padding(20);
@@ -419,7 +379,7 @@ async fn perform_gpu_benchmarks_async(config: Option<String>) -> Result<String, 
         crate::gpu_bench::run_all_gpu_benchmarks_and_summarize(config)
     })
     .await
-    .map_err(|e| format!("GPU/NN benchmark task failed: {}", e))
+    .map_err(|e| format!("GPU benchmark task failed: {}", e))
     .and_then(|res| res)
 }
 
@@ -427,7 +387,9 @@ async fn perform_gpu_benchmarks_async(config: Option<String>) -> Result<String, 
 pub fn run_ui() -> iced::Result {
     BenchmarkApp::run(Settings {
         window: iced::window::Settings {
-            size: (800, 600),
+            size: Size::new(800.0, 600.0),
+            resizable: true,
+            decorations: true,
             ..iced::window::Settings::default()
         },
         ..Settings::default()

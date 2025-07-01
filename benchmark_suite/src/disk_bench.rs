@@ -3,7 +3,7 @@
 // Includes sequential and random read/write tests to a temporary file.
 // Uses Criterion for benchmarking and summarizes results from JSON output.
 
-use criterion::{black_box, Criterion, BenchmarkId, Throughput, criterion_group};
+use criterion::{black_box, Criterion, BenchmarkId, Throughput};
 use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
 use std::fs::{File, OpenOptions};
@@ -70,7 +70,7 @@ fn bench_sequential_disk_write(c: &mut Criterion) {
                 // Ensure file is fresh for each iteration if measuring file creation + write
                 // Or, pre-create if only measuring write to existing (but truncated) file
                 cleanup_benchmark_file(&file_path); // Clean before setup
-                let mut file = setup_benchmark_file(&file_path, 0, None); // Create empty
+                let file = setup_benchmark_file(&file_path, 0, None); // Create empty
                 (file, data_to_write.clone())
             },
             |(mut file, data)| {
@@ -190,19 +190,22 @@ fn parse_criterion_json_disk(json_path: PathBuf, id: &str, total_bytes_processed
 }
 
 
-pub fn run_disk_benchmarks_and_summarize(config: Option<String>) -> Result<String, String> {
+pub fn run_disk_benchmarks_and_summarize(_config: Option<String>) -> Result<String, String> {
     let mut summary = String::from("Disk Benchmark Summary (from Criterion JSON):\n");
     let temp_dir = tempdir().map_err(|e| format!("Failed to create temp dir for Disk bench: {}", e))?;
     let output_dir = temp_dir.path().to_path_buf();
     let file_path_obj = Path::new(DISK_BENCH_FILE_NAME); // Used for cleanup, not directly by Criterion's output pathing
 
-    let mut crit_config = Criterion::default()
-        .output_directory(output_dir.clone())
+    let _crit_config = Criterion::default()
+        .output_directory(&output_dir)
         .sample_size(10); // Small sample size for UI
 
     // --- Sequential Write ---
     // Note: `bench_sequential_disk_write` handles its own file cleanup per iteration due to nature of test
-    bench_sequential_disk_write(&mut crit_config.clone());
+    let mut crit_seq_write = Criterion::default()
+        .output_directory(&output_dir)
+        .sample_size(10);
+    bench_sequential_disk_write(&mut crit_seq_write);
     let seq_write_json_path = output_dir.join("Disk_SequentialWrite")
                                        .join(&format!("{}", FILE_SIZE_BYTES))
                                        .join("estimates.json");
@@ -213,7 +216,10 @@ pub fn run_disk_benchmarks_and_summarize(config: Option<String>) -> Result<Strin
     cleanup_benchmark_file(&file_path_obj); // Ensure cleanup after this group
 
     // --- Sequential Read ---
-    bench_sequential_disk_read(&mut crit_config.clone());
+    let mut crit_seq_read = Criterion::default()
+        .output_directory(&output_dir)
+        .sample_size(10);
+    bench_sequential_disk_read(&mut crit_seq_read);
     let seq_read_json_path = output_dir.join("Disk_SequentialRead")
                                       .join(&format!("{}", FILE_SIZE_BYTES))
                                       .join("estimates.json");
@@ -224,7 +230,10 @@ pub fn run_disk_benchmarks_and_summarize(config: Option<String>) -> Result<Strin
     cleanup_benchmark_file(&file_path_obj); // Ensure cleanup
 
     // --- Random Read ---
-    bench_random_disk_read(&mut crit_config.clone());
+    let mut crit_rand_read = Criterion::default()
+        .output_directory(&output_dir)
+        .sample_size(10);
+    bench_random_disk_read(&mut crit_rand_read);
     let rand_read_json_path = output_dir.join("Disk_RandomRead")
                                        .join(&format!("{}", NUM_RANDOM_ACCESSES))
                                        .join("estimates.json");
@@ -248,11 +257,13 @@ pub fn run_disk_benchmarks_cli(config: Option<String>) {
     }
 
     println!("\nDetailed Criterion output for Disk (CLI):");
-    let mut c_detailed = Criterion::default().with_plots();
     // These bench functions handle their own setup/cleanup of the benchmark file
-    bench_sequential_disk_write(&mut c_detailed.clone());
-    bench_sequential_disk_read(&mut c_detailed.clone());
-    bench_random_disk_read(&mut c_detailed);
+    let mut c_seq_write_detailed = Criterion::default().with_plots();
+    bench_sequential_disk_write(&mut c_seq_write_detailed);
+    let mut c_seq_read_detailed = Criterion::default().with_plots();
+    bench_sequential_disk_read(&mut c_seq_read_detailed);
+    let mut c_rand_read_detailed = Criterion::default().with_plots();
+    bench_random_disk_read(&mut c_rand_read_detailed);
 
     println!("Disk benchmarks finished for CLI.");
     cleanup_benchmark_file(Path::new(DISK_BENCH_FILE_NAME)); // Final safety cleanup
