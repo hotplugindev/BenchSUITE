@@ -1,0 +1,39 @@
+[package]
+name = "benchmark_suite"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+iced = { version = "0.12", features = ["tokio", "glow"] }
+clap = { version = "4.4", features = ["derive"] }
+criterion = { version = "0.5", features = ["async_tokio"] }
+wgpu = "0.19"
+tch = "0.14" # For PyTorch bindings, consider CPU-only feature if GPU support is complex initially
+# For dfdx, if preferred over tch-rs:
+# dfdx = "0.12"
+# cudarc = { version = "0.9", optional = true } # If using dfdx with CUDA
+
+tokio = { version = "1", features = ["full"] }
+log = "0.4"
+env_logger = "0.10"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rand = "0.8"
+sysinfo = "0.30.5" # For getting system information (CPU, RAM)
+pollster = "0.3" # For blocking on async code in sync contexts
+bytemuck = { version = "1.14", features = ["derive"] } # For casting data for wgpu
+tempfile = "3.8" # For creating temporary directories for Criterion JSON output
+
+[features]
+default = []
+# Add features for conditional compilation if needed, e.g., for GPU backends with dfdx
+# cuda = ["dfdx/cuda", "dep:cudarc"]
+
+[profile.release]
+opt-level = 'z'     # Optimize for size.
+lto = true          # Enable Link Time Optimization.
+codegen-units = 1   # Reduce number of codegen units to increase optimization opportunities.
+panic = 'abort'     # Abort on panic rather than unwinding (saves space).
+strip = true        # Automatically strip symbols from the binary.
